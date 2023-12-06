@@ -57,7 +57,7 @@ def mainb(file):
                 for i in range(len(temp_list)//2):
                     seed_list.append(tuple(temp_list[i*2:(i+1)*2]))
 
-    for i in range(21000000, 1000000000):
+    for i in range(218000000, 1000000000):
         val = i
         for mapping_list in mapping_list_list:
             val = update_seeds_with_mapping_list_b(val, mapping_list)
@@ -91,11 +91,11 @@ def mainbb(file):
         mapping_list = []
         for line in f:
             if line == "\n":
-                print('Before:')
-                print(seed_range_list, mapping_list)
+                # print('Before:')
+                # print(seed_range_list, mapping_list)
                 seed_range_list = update_seed_range_list_with_mapping_list(seed_range_list, mapping_list)
-                print('After:')
-                print(seed_range_list)
+                # print('After:')
+                print(len(seed_range_list))
                 mapping_list = []
             elif line[0].isnumeric():
                 mapping_list.append(tuple([int(i) for i in re.findall(PATTERN, line)]))
@@ -199,6 +199,7 @@ def update_seed_range_list_with_mapping_list(seed_range_list, mapping_list):
             new_seed_range_list.append(seed_range_tuple)
 
     # print(f'Intermediate: {new_seed_range_list}')
+    # return new_seed_range_list
     return concat_disjoint_ranges(new_seed_range_list)
 
 def concat_disjoint_ranges(seed_range_list):
@@ -273,5 +274,5 @@ After:
 
 if __name__ == '__main__':
 
-    file = './data_sample.txt'
+    file = './data.txt'
     print(mainbb(file))
