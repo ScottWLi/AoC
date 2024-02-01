@@ -5,138 +5,313 @@ import re
 from functools import cache
 from collections import deque
 
-def is_in_grid(coords, n_rows, n_cols):
 
-    if coords.row >= 0 and coords.row < n_rows and coords.col >= 0 and coords.col < n_cols:
+class XYZCoord(NamedTuple):
+    x: int
+    y: int
+    z: int
+
+    def is_on_top_of(self, floor):
+        if (floor[self.x][self.y] == (self.z - 1)):
+            return True
+        return False
+
+    def is_on_top_of_brick(self, brick):
+        if (brick.start.x <= self.x <= brick.end.x) and (brick.start.y <= self.y <= brick.end.y) and (brick.end.z == self.z - 1):
+            return True
+
+        return False
+
+    def __str__(self):
+        return f'x: {self.x}, y: {self.y}, z: {self.z}'
+
+
+class Brick:
+
+    def __init__(self, start:XYZCoord, end: XYZCoord, id: int):
+        self.start = start
+        self.end = end
+        self.id = id
+
+    def fall(self):
+        start_dict = self.start._asdict()
+        end_dict = self.end._asdict()
+        start_dict['z'] -= 1
+        end_dict['z'] -= 1
+
+        self.start = XYZCoord(**start_dict)
+        self.end = XYZCoord(**end_dict)
+
+    def can_fall(self, floor):
+        block_list = self.get_blocks()
+        for block in block_list:
+            if block.is_on_top_of(floor):
+                return False
+
         return True
 
-    return False
+    def get_blocks(self):
+        #if vertical, returns only the bottom block
 
-class Coordinate(NamedTuple):
-    row: int
-    col: int
+        blocks = set()
+        template = {'x': self.start.x,
+                    'y': self.start.y,
+                    'z': self.start.z}
 
-    def __add__(self, other):
-        return Coordinate(self.row + other.row, self.col + other.col)
+        if self.start.z != self.end.z:
+            template['z'] = min(self.end.z, self.start.z)
+            blocks.add(XYZCoord(**template))
+        else:
+            blocks.add(XYZCoord(**template))
 
-    def is_in_grid(self, n_rows, n_cols):
-        if self.row >= 0 and self.row < n_rows and self.col >= 0 and self.col < n_cols:
-            return True
+            dimensions = ['x', 'y']
+
+            for dim in dimensions:
+                for i in range(getattr(self.end,dim), getattr(self.start,dim), -1):
+                    template[dim] = i
+                    blocks.add(XYZCoord(**template))
+
+        return blocks
+
+    def update_floor(self, floor):
+
+        template = {'x': self.start.x,
+                    'y': self.start.y,
+                    'z': self.start.z}
+        floor[template['x']][template['y']] = self.end.z
+        dimensions = ['x', 'y']
+
+        for dim in dimensions:
+            for i in range(getattr(self.end,dim), getattr(self.start,dim), -1):
+                template[dim] = i
+                floor[template['x']][template['y']] = self.end.z
+
+    def is_on_top_of(self, brick2):
+        block_list = self.get_blocks()
+        for block in block_list:
+            if block.is_on_top_of_brick(brick2):
+                return True
 
         return False
 
-    def is_on_path(self, grid):
-        if grid[self.row][self.col] == '.':
-            return True
 
-        return False
+    def __str__(self):
+        return f'{self.id} with start {self.start} and end {self.end}'
+
+def input_reader(string):
+    string_list = string.split(',')
+    string_list_as_int = tuple([int(x) for x in string_list])
+
+    return XYZCoord(*string_list_as_int)
 
 
-DIRECTIONS = {
-    Coordinate(0, 1): 'right',
-    Coordinate(0, -1): 'left',
-    Coordinate(-1, 0): 'up',
-    Coordinate(1, 0): 'down'
-}
+def can_disintegrate_block(brick_id, supports, is_supported_by):
+
+    can_disintegrate = True
+    # print(f'Considering brick {brick.id}')
+    if brick_id in supports:
+        bricks_supported = supports[brick.id]
+        for brick_supported_id in bricks_supported:
+            if len(is_supported_by[brick_supported_id]) <= 1:
+                can_disintegrate = False
+                break
+
+    return can_disintegrate
+
 
 def maina(file):
-
-    grid = []
+    # Create a list of all bricks
+    # Make all bricks fall
+    #   If brick is sitting on top of another brick, do nothing
+    #   Else reduce z coordinate by 1
+    # Check how many bricks sit on more than 1 brick
+    brick_lookup = {}
+    max_x = 0
+    max_y = 0
+    id = 0
 
     with open(file, 'r') as f:
         for line in f:
-            grid.append(line.strip())
+            split_line = line.strip().split('~')
+            start_coord = input_reader(split_line[0])
+            end_coord = input_reader(split_line[1])
 
-    start = None
+            max_x = max(max_x, end_coord.x)
+            max_y = max(max_y, end_coord.y)
 
-    for row, line in enumerate(grid):
-        for col, char in enumerate(line):
-            if char == 'S':
-                start = Coordinate(row, col)
-                grid[row] = grid[row].replace('S', '.')
+            brick_lookup[id] = Brick(start_coord, end_coord, id)
 
-    n_rows = len(grid)
-    n_cols = len(grid[0])
+            id += 1
 
-    print(n_rows, n_cols)
+    brick_list = list(brick_lookup.values())
+    brick_list.sort(key=lambda brick: brick.start.z)
 
-    queue = set([start])
-    steps = 0
-    total_steps = 65 + 131 * 0
+    # rows of floor are x
+    # eg floor[x][y]
 
-    while steps < total_steps:
-        new_queue = set()
-        for coord in queue:
-            for direction in DIRECTIONS.keys():
-                new_coord = coord + direction
-                if new_coord not in new_queue and new_coord.is_in_grid(n_rows, n_cols) and new_coord.is_on_path(grid):
-                    new_queue.add(new_coord)
-        queue = new_queue
-        steps += 1
+    floor = [[0] * (max_y + 1)for _ in range(max_x + 1)]
 
-    return len(queue)
+    bricks_falling = brick_list.copy()
+
+    for brick in bricks_falling:
+        while brick.can_fall(floor):
+            brick.fall()
+        brick.update_floor(floor)
+
+    supports = {}
+    is_supported_by = {}
+
+    for i in range(len(brick_list)):
+        for j in range(i):
+            brick1 = brick_list[i]
+            brick2 = brick_list[j]
+
+            if brick1.is_on_top_of(brick2):
+                if brick2.id not in supports:
+                    supports[brick2.id] = set([brick1.id])
+                else:
+                    supports[brick2.id].add(brick1.id)
+                if brick1.id not in is_supported_by:
+                    is_supported_by[brick1.id] = set([brick2.id])
+                else:
+                    is_supported_by[brick1.id].add(brick2.id)
+
+            if brick2.is_on_top_of(brick1):
+                if brick1.id not in supports:
+                    supports[brick1.id] = set([brick2.id])
+                else:
+                    supports[brick1.id].add(brick2.id)
+                if brick2.id not in is_supported_by:
+                    is_supported_by[brick2.id] = set([brick1.id])
+                else:
+                    is_supported_by[brick2.id].add(brick1.id)
+
+
+    n_disintegrated = 0
+
+    for brick in brick_list:
+        if can_disintegrate_block(brick.id, supports, is_supported_by):
+            print(f'Brick {brick.id} can be disintegrated')
+            n_disintegrated += 1
+
+    for brick in brick_list:
+        print(brick)
+
+    # for key, value in is_supported_by.items():
+    #     print('Brick')
+    #     print(brick_lookup[key])
+    #     print('Supported by')
+    #     for val in value:
+    #         print(brick_lookup[val])
+
+    return n_disintegrated
+
+
+def other_bricks_would_fall(brick_id, supports, is_supported_by):
+    # Add the bricks brick_id supports to a queue
+    # for each brick it supports, remove it from is_supported_by
+    # if length of is_supported_by is zero, then add what it supports to the queue and repeat and uptick counter
+    print(f'Calculating for {brick_id}')
+
+    other_bricks = 0
+
+    will_be_affected = {}
+
+    queue = deque([brick_id])
+
+    while queue:
+        front = queue.popleft()
+        if front in supports:
+            front_supports = supports[front]
+            for above in front_supports:
+                if above in will_be_affected:
+                    will_be_affected[above].append(front)
+                else:
+                    will_be_affected[above] = [front]
+                if len(is_supported_by[above]) == len(will_be_affected[above]):
+                    queue.append(above)
+                    other_bricks += 1
+
+
+    return other_bricks
 
 def mainb(file):
-
-    grid = []
+    # Create a list of all bricks
+    # Make all bricks fall
+    #   If brick is sitting on top of another brick, do nothing
+    #   Else reduce z coordinate by 1
+    # Check how many bricks sit on more than 1 brick
+    brick_lookup = {}
+    max_x = 0
+    max_y = 0
+    id = 0
 
     with open(file, 'r') as f:
         for line in f:
-            grid.append(line.strip())
+            split_line = line.strip().split('~')
+            start_coord = input_reader(split_line[0])
+            end_coord = input_reader(split_line[1])
 
-    start = None
+            max_x = max(max_x, end_coord.x)
+            max_y = max(max_y, end_coord.y)
 
-    for row, line in enumerate(grid):
-        for col, char in enumerate(line):
-            if char == 'S':
-                start = Coordinate(row, col)
-                grid[row] = grid[row].replace('S', '.')
+            brick_lookup[id] = Brick(start_coord, end_coord, id)
 
-    for i, row in enumerate(grid):
-        grid[i] = row * 5
+            id += 1
 
-    new_grid = grid.copy()
+    brick_list = list(brick_lookup.values())
+    brick_list.sort(key=lambda brick: brick.start.z)
 
-    for i in range(4):
-        new_grid.extend(grid)
+    # rows of floor are x
+    # eg floor[x][y]
 
-    grid = new_grid
+    floor = [[0] * (max_y + 1)for _ in range(max_x + 1)]
 
-    n_rows = len(grid)
-    n_cols = len(grid[0])
+    bricks_falling = brick_list.copy()
 
-    print(n_rows, n_cols)
+    for brick in bricks_falling:
+        while brick.can_fall(floor):
+            brick.fall()
+        brick.update_floor(floor)
 
-    queue = set([start + Coordinate(262, 262)])
-    steps = 0
-    total_steps = 65 + 131 * 2
+    supports = {}
+    is_supported_by = {}
 
-    while steps < total_steps:
-        new_queue = set()
-        for coord in queue:
-            for direction in DIRECTIONS.keys():
-                new_coord = coord + direction
-                if new_coord not in new_queue and new_coord.is_in_grid(n_rows, n_cols) and new_coord.is_on_path(grid):
-                    new_queue.add(new_coord)
-        queue = new_queue
-        steps += 1
+    for i in range(len(brick_list)):
+        for j in range(i):
+            brick1 = brick_list[i]
+            brick2 = brick_list[j]
 
-    return len(queue)
+            if brick1.is_on_top_of(brick2):
+                if brick2.id not in supports:
+                    supports[brick2.id] = set([brick1.id])
+                else:
+                    supports[brick2.id].add(brick1.id)
+                if brick1.id not in is_supported_by:
+                    is_supported_by[brick1.id] = set([brick2.id])
+                else:
+                    is_supported_by[brick1.id].add(brick2.id)
+
+            if brick2.is_on_top_of(brick1):
+                if brick1.id not in supports:
+                    supports[brick1.id] = set([brick2.id])
+                else:
+                    supports[brick1.id].add(brick2.id)
+                if brick2.id not in is_supported_by:
+                    is_supported_by[brick2.id] = set([brick1.id])
+                else:
+                    is_supported_by[brick2.id].add(brick1.id)
+
+
+    n_total_fallen = 0
+
+    for brick in brick_list:
+        n_total_fallen += other_bricks_would_fall(brick.id, supports, is_supported_by)
+
+    return n_total_fallen
+
 
 if __name__ == '__main__':
 
     file = './data.txt'
-    # print(mainb(file))
-
-    print((26501365 - 65) // 131)
-
-    f0 = 3802
-    f1 = 33732
-    f2 = 93480
-
-    C = 3802
-    A = (f2 - 2*f1 + f0) / 2
-    B = f1 - A - C
-
-    print(f'A: {A}, B: {B}, C: {C}')
-    print(f'Final answer: {202300**2 * A + 202300 * B + C}')
+    print(mainb(file))
