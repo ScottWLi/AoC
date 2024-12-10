@@ -1,8 +1,8 @@
 from pathlib import PurePath
-from Day5.main import main1, main2
+from Day9.main import main1, main2
 
 if __name__ == '__main__':
-    day = 5
+    day = 9
 
     example = 'example.txt'
     example2 = 'example2.txt'
