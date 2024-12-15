@@ -38,10 +38,17 @@ class DIRECTIONS(Enum):
     DOWN_LEFT = DOWN + LEFT
     DOWN_RIGHT = DOWN + RIGHT
 
+    @classmethod
+    def simple_directions(cls):
+        return [cls.UP, cls.DOWN, cls.RIGHT, cls.LEFT]
+
 
 class Grid:
-    def __init__(self, grid):
-        self.grid = [list(row) for row in grid]
+    def __init__(self, grid, as_int = False):
+        if as_int:
+            self.grid = [list(map(int,row)) for row in grid]
+        else:
+            self.grid = [list(row) for row in grid]
 
     def __contains__(self, coordinate):
         return ((coordinate.row >= 0 and coordinate.row < len(self.grid))
@@ -79,6 +86,10 @@ class Grid:
                     count += 1
 
         return count
+
+    def __str__(self) :
+        return "\n".join("".join(map(str, row)) for row in self.grid)
+
 
 class GridPointer:
     def __init__(self, coordinate, direction):
