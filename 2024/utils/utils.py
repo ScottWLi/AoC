@@ -18,6 +18,9 @@ class Coordinate(NamedTuple):
     def __mul__(self, value):
         return Coordinate(self.row * value, self.column * value)
 
+    def __rmul__(self, value):
+        return self * value
+
     def __sub__(self, other):
         return Coordinate(self.row - other.row, self.column - other.column)
 
@@ -26,6 +29,13 @@ class Coordinate(NamedTuple):
 
     def __floordiv__(self, value):
         return Coordinate(self.row // value, self.column // value)
+
+    def __bool__(self):
+        return self.row != 0 or self.column != 0
+
+    def manhattan(self, other):
+        diff = self - other
+        return abs(diff.row) + abs(diff.column)
 
 
 class DIRECTIONS(Enum):

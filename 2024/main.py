@@ -1,8 +1,8 @@
 from pathlib import PurePath
-from Day15.main import main1, main2
+from Day21.main import main1, main2, bisect_sequence
 
 if __name__ == '__main__':
-    day = 15
+    day = 21
 
     example = 'example.txt'
     example2 = 'example2.txt'
@@ -13,3 +13,4 @@ if __name__ == '__main__':
     data_path = PurePath(f'Day{day}', data)
 
     print(main2(data_path))
+
