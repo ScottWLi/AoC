@@ -30,42 +30,53 @@ COORDINATE_TO_STRING = {
     Coordinate(-1, 0): '^'
 }
 
-def bisect_sequence(key_list):
+def multiply_counter(counter, scalar):
+    ret = Counter()
+
+    for key, value in counter.items():
+        ret[key] = value * scalar
+
+    return ret
+
+def count_sequence(key_list):
     end = len(key_list)
 
     A_counting = False
 
-    counter = Counter()
-    pointer = 0
+    local_counter = Counter()
+    sequence_counter = Counter()
+
+    start_pointer = 0
+    end_pointer = 0
 
     indexes = [0]
 
-    while pointer < end:
+    while end_pointer < end:
 
-        if A_counting and key_list[pointer] != 'A':
+        if A_counting and key_list[end_pointer] != 'A':
             A_counting = False
-            indexes.append(pointer)
+            sequence_counter[key_list[start_pointer:end_pointer]] += 1
+            start_pointer = end_pointer
         else:
-            if key_list[pointer] == '^':
-                counter['up'] += 1
-            elif key_list[pointer] == 'v':
-                counter['up'] -= 1
-            elif key_list[pointer] == '<':
-                counter['right'] -= 1
-            elif key_list[pointer] == '>':
-                counter['right'] += 1
-            elif key_list[pointer] == 'A':
-                if counter['up'] == 0 and counter['right'] == 0:
+            if key_list[end_pointer] == '^':
+                local_counter['up'] += 1
+            elif key_list[end_pointer] == 'v':
+                local_counter['up'] -= 1
+            elif key_list[end_pointer] == '<':
+                local_counter['right'] -= 1
+            elif key_list[end_pointer] == '>':
+                local_counter['right'] += 1
+            elif key_list[end_pointer] == 'A':
+                if local_counter['up'] == 0 and local_counter['right'] == 0:
                     A_counting = True
             else:
-                raise ValueError(f'Unexpected character {key_list[pointer]}')
+                raise ValueError(f'Unexpected character {key_list[end_pointer]}')
 
-            pointer += 1
+            end_pointer += 1
 
-    indexes.append(end)
-    middleIndex = len(indexes) // 2
+    sequence_counter[key_list[start_pointer:end_pointer]] += 1
 
-    return indexes[middleIndex]
+    return sequence_counter
 
 
 def expand_coordinate(coordinate, horizontal_first=True, force_horizontal_first=False):
@@ -119,7 +130,7 @@ class Keypad(Grid):
         for key in key_list:
             total_sequence += self.sequence_for_key(key) + ('A',)
 
-        return total_sequence
+        return ''.join(total_sequence)
 
 class Robotpad(Grid):
     _cache = {}
@@ -145,61 +156,63 @@ class Robotpad(Grid):
         return expand_coordinate(distance)
 
     def sequence_from_list(self, key_list: tuple[str]) -> tuple:
-        if key_list in Robotpad._cache:
-            return Robotpad._cache[key_list]
-
-        mid_idx = bisect_sequence(key_list)
-
-        if mid_idx != len(key_list): # Found a midpoint
-            joined = self.sequence_from_list(key_list[:mid_idx]) + self.sequence_from_list(key_list[mid_idx:])
-            Robotpad._cache[key_list] = joined
-            return joined
-
         total_sequence = tuple()
         for key in key_list:
             total_sequence += self.sequence_for_key(key) + ('A', )
 
         Robotpad._cache[key_list] = total_sequence
 
-        return total_sequence
+        return ''.join(total_sequence)
 
-def four_robot_control_sequence(code, n_robots) -> tuple:
+def _get_iterative_robot_calls(code_counter, n_calls):
+
+    if n_calls > 0:
+        code_counter = _get_iterative_robot_calls(code_counter, n_calls - 1)
+
+    new_code_counter = Counter()
+
+    for key, value in code_counter.items():
+        breakdown = _cache_wrap_sequence_from_list_impl(key)
+        new_code_counter.update(multiply_counter(breakdown, value))
+
+    return new_code_counter
+
+@cache
+def _cache_wrap_sequence_from_list_impl(sequence):
+
+    robotpad_robot = Robotpad()
+    return count_sequence(robotpad_robot.sequence_from_list(sequence))
+
+def four_robot_control_sequence(code, n_robots) -> Counter:
 
     keypad_robot = Keypad() # Translates code in robotpad inputs
 
-    code = keypad_robot.sequence_from_list(code)
+    code = count_sequence(keypad_robot.sequence_from_list(code))
 
-    for i in range(n_robots):
-        robotpad_robot = Robotpad()
-        code = robotpad_robot.sequence_from_list(code)
-        print(len(code))
+    return _get_iterative_robot_calls(code, n_robots-1)
 
-    return code
+
+def main2_impl(tuple_, n_robots=25):
+
+    codes = tuple_
+
+    total = 0
+    for code in codes:
+        sequence_counter = four_robot_control_sequence(code, n_robots)
+        print(f"Final: {sequence_counter}")
+        sequence_len = 0
+        for key, values in sequence_counter.items():
+            sequence_len += len(key) * values
+
+        print(sequence_len)
+
+        total += int(code[:3]) * sequence_len
+
+    return total
 
 def main1_impl(tuple_):
 
-    codes = tuple_
-
-    total = 0
-    for code in codes:
-        sequence = four_robot_control_sequence(code, 2)
-        print(len(sequence))
-        total += int(code[:3]) * len(sequence)
-
-    return total
-
-
-def main2_impl(tuple_):
-
-    codes = tuple_
-
-    total = 0
-    for code in codes:
-        sequence = four_robot_control_sequence(code, 25)
-        print(len(sequence))
-        total += int(code[:3]) * len(sequence)
-
-    return total
+    return main2_impl(tuple_, 2)
 
 def main1(file):
     file_tuple = read_file(file)

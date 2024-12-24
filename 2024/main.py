@@ -1,5 +1,5 @@
 from pathlib import PurePath
-from Day21.main import main1, main2, bisect_sequence
+from Day21.main import main1, main2, count_sequence
 
 if __name__ == '__main__':
     day = 21
